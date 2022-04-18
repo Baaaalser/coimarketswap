@@ -28,12 +28,12 @@ class UserSerializer(serializers.ModelSerializer):
         value = value.replace(" ", "")  # Ya que estamos borramos los espacios
         try:
             user = get_user_model().objects.get(username=value)
-            # Si es el mismo usuario mandando su mismo username le dejamos
+            # Si es el mismo usuario mandando su mismo username lo dejamos
             if user == self.instance:
                 return value
         except get_user_model().DoesNotExist:
             return value
-        raise serializers.ValidationError("Nombre de usuario en uso")
+        raise serializers.ValidationError("Nombre de usuario ya está en uso")
 
     def validate_email(self, value):
         # Hay un usuario con este email ya registrado?
@@ -42,7 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
         except get_user_model().DoesNotExist:
             return value
         # En cualquier otro caso la validación fallará
-        raise serializers.ValidationError("Email en uso")
+        raise serializers.ValidationError("Email ya está en uso")
 
     def update(self, instance, validated_data):
         validated_data.pop('email', None)               # prevenimos el borrado

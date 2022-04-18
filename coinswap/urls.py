@@ -12,7 +12,7 @@ urlpatterns = [
 
      path('auth/signup/',
           SignupView.as_view(), name='auth_signup'),
-     path('auth/showusers',UsersList.as_view(),name='auth_showusers')
+     path('auth/showusers',UsersList.as_view(),name='auth_showusers'),
 
 
 ]

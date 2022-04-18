@@ -45,7 +45,7 @@ INSTALLED_APPS = [
 
     # Django custom apps
     'coinswap',
-    #'films',
+    'transactions',
     
 ]
 

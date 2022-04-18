@@ -18,7 +18,9 @@ urlpatterns = [
     # Api routes
     path('api/', include('coinswap.urls')),
     path('api/', include(router.urls)),
-    #path('api/userfilms/', film_views.FilmUserViewSet.as_view())
+    path('trx/', include('transactions.urls')),
+    
+    
 ]
 # Serve static files in development server
 if settings.DEBUG:
