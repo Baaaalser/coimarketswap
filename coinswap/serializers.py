@@ -19,7 +19,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = ('email', 'username', 'password','wallet_address')  # edited
+        fields = ('id','email', 'username', 'password','wallet_address')  # edited
         
 
     def validate_password(self, value):

@@ -1,3 +1,4 @@
+from functools import partial
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.permissions import IsAdminUser , AllowAny, IsAuthenticated
 from rest_framework import generics, status
@@ -7,7 +8,7 @@ from rest_framework.views import APIView
 from .models.cointicker import CoinTicker
 from .models.transactions import TxHistory
 from .models.balance import Balance
-from .serializers import CoinTickerSerializer,TxHistorySerializer
+from .serializers import CoinTickerSerializer,TxHistorySerializer,BalanceSerializer,TxHistoryShowSerializer
 from coinswap.models import CustomUser
 from coinswap.serializers import UserSerializer
 from cryptography.fernet import Fernet
@@ -18,10 +19,6 @@ def generateTxHash(data):# paso el dict
     if not (type(data) is dict):
         return 1
     hash_salt = Fernet(b'EWDZM_yfFkL-uJK4Qle_SJ4RYGvfxRGxYVteaEkmDdg=')# salt
-    date = datetime.now() #tengo que generar antes la fecha para poder hacer hash a todo
-    data['date_time'] = date
-    
-    
     mergedkeys = ''
     for keys in data:
         mergedkeys = ''.join(str(data[keys]))
@@ -29,6 +26,69 @@ def generateTxHash(data):# paso el dict
     token = hash_salt.encrypt(bytes(mergedkeys,'utf-8'))
     hashed_data = base64.urlsafe_b64encode(token).decode("utf-8") 
     return hashed_data
+
+# Registro de transacciones
+def saveBalance(wallet:int,ticker:int,amount:float):
+
+    
+
+    if(Balance.objects.filter(wallet=wallet,coin_ticker=ticker).exists()): #existe balance para esa wallet?
+        #actualizo en ese caso
+        balance_id = Balance.objects.filter(wallet=wallet,coin_ticker=ticker)
+        to_edit = Balance.objects.get(id=balance_id[0].id)
+        to_edit.amount = amount
+        to_edit.save()
+        print('balance actualizado')
+        return Response(status=status.HTTP_201_CREATED)
+
+    dict_data  = {
+            'wallet' : wallet,
+            'coin_ticker' : ticker,
+            'amount': amount,
+            }
+
+    serializer = BalanceSerializer(data=dict_data)
+    if serializer.is_valid():
+            serializer.save()
+            print('balance actualizado')
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+    pass
+    return 0
+
+def saveTransaction(tx_type : int, wallet_origin:int,wallet_destination:int,
+                    ticker:int,previous_amount: float, current_amount: float,after_amount: float,
+                    date : datetime):
+
+    
+    dict_data  = {
+				'tx_type' : tx_type,
+				'wallet_from': wallet_origin,
+				'wallet_to': wallet_destination,
+				'ticker': ticker,
+				'previous_amount': previous_amount,
+				'current_amount': current_amount,
+				'after_amount': after_amount,
+                'date_time' : date
+				}
+    tx_hash = generateTxHash(dict_data) #obtengo el hash
+    print(tx_hash)
+    dict_data['tx_hash']=tx_hash
+    serializer = TxHistorySerializer(data=dict_data)
+
+    if serializer.is_valid():
+        serializer.save()
+        #una vez salvada la transaccion actualizo los balances
+        #hago un backup de ambas wallets
+        #guardo el emisor, en el caso de carga de fondos del airdrop al root que esta en modo dios no lo cargo en balances del emisor
+        if not (tx_type == 1):
+            saveBalance(wallet_origin,ticker,after_amount)
+        #guardo el receptor
+        saveBalance(wallet_destination,ticker,after_amount)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 class CoinList(APIView):
     permission_classes = [IsAuthenticated]#cualquier usuario puede ver las monedas
@@ -51,42 +111,22 @@ class TxHistoryList(APIView):
 	permission_classes = [IsAdminUser] #solo el admin puede ver todas
 	def get(self, request):
 		txhistory = TxHistory.objects.all()
-		serializer = TxHistorySerializer(txhistory, many=True)
+		serializer = TxHistoryShowSerializer(txhistory, many=True)
+		return Response(serializer.data)
+
+class BalancesList(APIView):
+	permission_classes = [IsAdminUser] #solo el admin puede ver todos los balances
+	def get(self, request):
+		balances = Balance.objects.all()
+		serializer = BalanceSerializer(balances, many=True)
 		return Response(serializer.data)
 
 
-class TxHistoryCreate(APIView):
-    permission_classes = [IsAdminUser] #admin el único que puede crear
-    def post(self, request):
-        print(request.data)
-        print(request.user)
-        wallet = CustomUser.objects.filter(email=request.user) #ver selectrelated para traer la wallet
-        ticker_s = CoinTicker.objects.filter(ticker_symbol=request.data['cointicker'])
-        # userserialize = UserSerializer(wallet)
-        # print(userserialize)
-        print(ticker_s[0].ticker_name)
-        print(wallet[0].wallet_address)
-        print(request.method)
-        # print(list(request.query_params.values())[0].upper())
-        print(request.query_params)
-        print(request.query_params['type'].upper())
-        print(request.query_params['mode'].upper())
-    
-        serializer = CoinTickerSerializer(data=request.data)
-
-        if serializer.is_valid():
-            return Response(serializer.data, status=status.HTTP_201_CREATED)# por ahora no guardo nada
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class FundAirdropWallet(APIView):
-    
-
     permission_classes = [IsAdminUser] #solo el admin fondear al airdrop
     def post(self,request):
         #solo el admin puede fondear (admin@coinmarketswap.com), la operación se registra como (1,'AIRDROP','DEPOSIT')
-        
         userposting = request.user
         ticker = request.POST['cointicker']
         amount = float(request.POST['amount'])
@@ -102,9 +142,10 @@ class FundAirdropWallet(APIView):
                 #ya tengo la wallet origen/destino/monto/moneda/tipo de operacion
                 previous_amount = float(0)
                 if(Balance.objects.filter(wallet=wallet_airdrop[0].id).exists()):#ya tiene balance?
-                    if(Balance.objects.filter(coin_ticker=ticker_id).exists):
-                        previous_amount = Balance.objects.filter(coin_ticker=ticker_id,wallet=wallet_airdrop)[0].amount
+                    if(Balance.objects.filter(coin_ticker=ticker_id).exists()):
+                        previous_amount = Balance.objects.filter(coin_ticker=ticker_id,wallet=wallet_airdrop[0].id)[0].amount
                 after_amount = amount + previous_amount # es un depósito, se suman
+                date = datetime.now() #tengo que generar antes la fecha para poder hacer hash a todo
                 dict_data  = {
 				'tx_type' : 1 ,
 				'wallet_from': wallet_funder,
@@ -112,9 +153,13 @@ class FundAirdropWallet(APIView):
 				'ticker': ticker,
 				'previous_amount': previous_amount,
 				'current_amount': amount,
-				'after_amount': after_amount
+				'after_amount': after_amount,
+                'date_time' : date
 				}
-                print(generateTxHash(dict_data))
+                
+                #ya tengo la wallet origen/destino/monto/moneda/tipo de operacion/fecha y el hash de la transacción
+                saveTransaction(1,wallet_funder[0].id,wallet_airdrop[0].id,ticker_id,previous_amount,amount,after_amount,date)
+                # cargar la transaccion si sale ok actualizar el balance
 
             else:
                 return Response("Ticker doesn't exists",status=status.HTTP_404_NOT_FOUND)
@@ -139,3 +184,4 @@ class TxRequestAirdrop(APIView): #para fondear la cuenta lo primero es pedir un 
     def get(self,request): 
         pass
         return Response(status=status.HTTP_200_OK)
+
