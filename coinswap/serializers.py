@@ -20,6 +20,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
         fields = ('email', 'username', 'password','wallet_address')  # edited
+        
 
     def validate_password(self, value):
         return make_password(value)
@@ -47,4 +48,5 @@ class UserSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         validated_data.pop('email', None)               # prevenimos el borrado
         return super().update(instance, validated_data)  # seguimos la ejecución
+
 

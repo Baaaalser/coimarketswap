@@ -4,7 +4,8 @@ from .cointicker import CoinTicker
 
 class TxHistory(models.Model):
 
-    txtype = (('AIRDROP','DEPOSIT'),('AIRDROP','SENT'),('BURN','SENT'),('BURN','DEPOSIT'),('P2P','SENT'),('P2P','DEPOSIT'))
+    txtype = ((1,'AIRDROP-DEPOSIT'),(2,'AIRDROP-SENT'),(3,'BURN-SENT'),
+                (4,'BURN-DEPOSIT'),(5,'P2P-SENT'),(6,'P2P-DEPOSIT'))
 
     tx_hash = models.CharField(max_length=160,unique=True)
     tx_type = models.CharField(max_length=7,choices=txtype)
