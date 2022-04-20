@@ -1,4 +1,4 @@
-from functools import partial
+from django.utils.datastructures import MultiValueDictKeyError
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.permissions import IsAdminUser , AllowAny, IsAuthenticated
 from rest_framework import generics, status
@@ -36,54 +36,60 @@ def saveBalance(wallet:int,ticker:int,amount:float):
         to_edit.amount = amount
         to_edit.save()
         print('balance actualizado')
-        return Response(status=status.HTTP_201_CREATED)
+    else: # si no tiene balance lo creo
+        dict_data  = {
+                'wallet' : wallet,
+                'coin_ticker' : ticker,
+                'amount': amount,
+                }
 
-    dict_data  = {
-            'wallet' : wallet,
-            'coin_ticker' : ticker,
-            'amount': amount,
-            }
+        serializer = BalanceSerializer(data=dict_data)
+        if serializer.is_valid():
+                serializer.save()
+                print('balance actualizado')
+                return 0
+        else:
+            return 1
 
-    serializer = BalanceSerializer(data=dict_data)
-    if serializer.is_valid():
-            serializer.save()
-            print('balance actualizado')
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-    pass
-    return 0
 
-def saveTransaction(tx_type : int, wallet_origin:int,wallet_destination:int,
+def saveTransaction(tx_type : str, wallet_origin:int,wallet_destination:int,
                     ticker:int, current_amount: float):
 
     previous_amount_origin = float(0)
     previous_amount_destination = float(0)
     current_amount = float(current_amount)
-
+    after_amount_from = float(0)
+    after_amount_to =  float(0)
     date = datetime.now() #tengo que generar antes la fecha para poder hacer hash a todo
     #guardo el emisor, en el caso de carga de fondos del airdrop al root que esta en modo dios no lo cargo en balances del emisor
-    if not (tx_type == 1):
+    if not (wallet_destination == CustomUser.objects.filter(email='airdrop@coinmarketswap.com')[0].id):
         if(Balance.objects.filter(wallet=wallet_origin,coin_ticker=ticker).exists()):#ya tiene balance de este ticker?
             previous_amount_origin = Balance.objects.filter(wallet=wallet_origin,coin_ticker=ticker)[0].amount
-            
             if( previous_amount_origin >= current_amount): # tienen fondos para enviar?
-                saveBalance(wallet_origin,ticker,(previous_amount_origin-current_amount)) # el que envia resta
+                if(saveBalance(wallet_origin,ticker,(previous_amount_origin-current_amount))==1): # el que envia resta
+                    return 1
+                after_amount_from = previous_amount_origin-current_amount
             else:
                 return 1
         else:
             return 1 # si no tiene el ticker o balances de ningún tipo...
     else: #si es para fondear el airdrop tengo que pedir los fondos antes
-        previous_amount_destination = Balance.objects.filter(wallet=wallet_destination,coin_ticker=ticker)[0].amount
+        if(Balance.objects.filter(wallet=wallet_destination,coin_ticker=ticker).exists()):
+            previous_amount_destination = Balance.objects.filter(wallet=wallet_destination,coin_ticker=ticker)[0].amount
     #guardo el receptor
-    saveBalance(wallet_destination,ticker,(previous_amount_destination+current_amount)) # el que recibe suma
-
+    if(saveBalance(wallet_destination,ticker,(previous_amount_destination+current_amount))==1):
+        return 1 
+    after_amount_to = previous_amount_destination+current_amount
     dict_data  = {
                     'tx_type' : tx_type,
                     'wallet_from': wallet_origin,
                     'wallet_to': wallet_destination,
                     'ticker': ticker,
-                    'previous_amount': previous_amount_origin,
+                    'previous_amount_from': previous_amount_origin,
                     'current_amount': current_amount,
-                    'after_amount': previous_amount_origin-current_amount,
+                    'after_amount_from': after_amount_from,
+                    'previous_amount_to': previous_amount_destination,
+                    'after_amount_to' : after_amount_to,
                     'date_time' : date
                     }
     tx_hash = generateTxHash(dict_data) #obtengo el hash
@@ -100,7 +106,7 @@ def saveTransaction(tx_type : int, wallet_origin:int,wallet_destination:int,
 
 class CoinList(APIView):
     permission_classes = [IsAuthenticated]#cualquier usuario puede ver las monedas
-    def get(self, request, format=None):
+    def get(self, request):
         coins = CoinTicker.objects.all()
         serializer = CoinTickerSerializer(coins, many=True)
         return Response(serializer.data)
@@ -116,32 +122,33 @@ class CoinCreate(APIView):
 
 
 class TxHistoryList(APIView):
-	permission_classes = [IsAdminUser] #solo el admin puede ver todas
-	def get(self, request):
-		txhistory = TxHistory.objects.all()
-		serializer = TxHistoryShowSerializer(txhistory, many=True)
-		return Response(serializer.data)
+	# permission_classes = [IsAdminUser] #solo el admin puede ver todas
+    def get(self, request):
+        if request.user.is_staff:
+            txhistory = TxHistory.objects.all()
+            serializer = TxHistoryShowSerializer(txhistory, many=True)
+            return Response(serializer.data)
 
-class userHistoryList(APIView):
-	permission_classes = [IsAuthenticated] #solo el admin puede ver todas
-	def get(self, request):
-		txhistory = TxHistory.objects.filter(wallet_from=request.user)|TxHistory.objects.filter(wallet_to=request.user)
-		serializer = TxHistoryShowSerializer(txhistory, many=True)
-		return Response(serializer.data)
+        elif request.user.is_authenticated:
+            txhistory = TxHistory.objects.filter(wallet_from=request.user)|TxHistory.objects.filter(wallet_to=request.user)
+            serializer = TxHistoryShowSerializer(txhistory, many=True)
+            return Response(serializer.data)
 
 class BalancesList(APIView):
-	permission_classes = [IsAdminUser] #solo el admin puede ver todos los balances
-	def get(self, request):
-		balances = Balance.objects.all()
-		serializer = BalanceSerializer(balances, many=True)
-		return Response(serializer.data)
-
-class userBalance(APIView):
-    permission_classes = [IsAuthenticated] #solo el admin puede ver todos los balances
+    
+    #permission_classes = [IsAdminUser] #solo el admin puede ver todos los balances
+    
     def get(self, request):
-        balances = Balance.objects.filter(wallet=request.user)
-        serializer = userBalanceSerializer(balances, many=True)
-        return Response(serializer.data)
+        
+        if request.user.is_staff:
+            balances = Balance.objects.all()
+            serializer = BalanceSerializer(balances, many=True)
+            return Response(serializer.data)
+
+        elif request.user.is_authenticated:
+            balances = Balance.objects.filter(wallet=request.user)
+            serializer = userBalanceSerializer(balances, many=True)
+            return Response(serializer.data)
 
 
 
@@ -149,9 +156,15 @@ class FundAirdropWallet(APIView):
     permission_classes = [IsAdminUser] #solo el admin fondear al airdrop
     def post(self,request):
         #solo el admin puede fondear (admin@coinmarketswap.com), la operación se registra como (1,'AIRDROP','DEPOSIT')
-        userposting = request.user
-        ticker = request.POST['cointicker']
-        amount = float(request.POST['amount'])
+        try:
+            userposting = request.user
+            ticker = request.POST['cointicker']
+            amount = float(request.POST['amount'])
+        except MultiValueDictKeyError:
+            print('Error')
+            return Response('missing data, use http://url/trx/tx/fundairdrop?&amount=value&cointicker=cointicker',
+            status=status.HTTP_400_BAD_REQUEST)
+
         print(userposting.email)
         if(userposting.email == 'admin@coinmarketswap.com'):
             #primero busco la wallet del airdrop
@@ -161,7 +174,8 @@ class FundAirdropWallet(APIView):
             if(CoinTicker.objects.filter(ticker_symbol=ticker).exists()): #existe el ticker?
                 ticker_id = CoinTicker.objects.filter(ticker_symbol=ticker)[0].id
                 #ya tengo la wallet origen/destino/monto/moneda/tipo de operacion/fecha y el hash de la transacción
-                saveTransaction(1,wallet_funder[0].id,wallet_airdrop[0].id,ticker_id,amount)
+                if(saveTransaction('airdrop',wallet_funder[0].id,wallet_airdrop[0].id,ticker_id,amount)==1):
+                    return Response("Couldn't complete the request",status=status.HTTP_403_FORBIDDEN)
             else:
                 return Response("Ticker doesn't exists",status=status.HTTP_404_NOT_FOUND)
             try:
@@ -178,8 +192,13 @@ class FundAirdropWallet(APIView):
 class TxRequestAirdrop(APIView): #para fondear la cuenta lo primero es pedir un airdrop por única vez
     permission_classes = [IsAuthenticated]#sólo lo pueden pedir usuarios registrados
     def post(self,request): 
-        userposting = request.user
-        ticker = request.POST['cointicker']
+        try:
+            userposting = request.user
+            ticker = request.POST['cointicker']
+        except MultiValueDictKeyError:
+            print('Error')
+            return Response('missing data, use http://url//trx/tx/requestairdrop?&cointicker=ticker',
+            status=status.HTTP_400_BAD_REQUEST)
         amount = float(10)# dejo fijo en 10 el monto del airdrop
         wallet_airdrop = CustomUser.objects.filter(email='airdrop@coinmarketswap.com') # origen airdrop
         if not (userposting.email == 'admin@coinmarketswap.com'): #no tiene sentido que el admin pida fondos
@@ -190,7 +209,7 @@ class TxRequestAirdrop(APIView): #para fondear la cuenta lo primero es pedir un 
                 if (Balance.objects.filter(coin_ticker=ticker_id,wallet=wallet_destination[0].id)): #Si la wallet ya tiene balance para ese ticker, rechazo el pedido
                     return Response(f"You can request airdrop for {ticker} only once",status=status.HTTP_403_FORBIDDEN) #you shall not pass!!!!!
                 else:# le mando el airdrop (2,'AIRDROP-SENT')
-                    saveTransaction(2,wallet_airdrop[0].id,wallet_destination[0].id,ticker_id,amount)
+                    saveTransaction('airdrop',wallet_airdrop[0].id,wallet_destination[0].id,ticker_id,amount)
                     return Response(status=status.HTTP_200_OK)
             else:
                 return Response("Ticker doesn't exists",status=status.HTTP_404_NOT_FOUND)
@@ -208,7 +227,7 @@ class TxRequestBurn(APIView):
         wallet_origin = CustomUser.objects.filter(email=userposting) # origen 
         if(CoinTicker.objects.filter(ticker_symbol=ticker).exists()): #existe el ticker?
                 ticker_id = CoinTicker.objects.filter(ticker_symbol=ticker)[0].id
-                if(saveTransaction(3,wallet_origin[0].id,wallet_burn[0].id,ticker_id,amount)==0):
+                if(saveTransaction('burn',wallet_origin[0].id,wallet_burn[0].id,ticker_id,amount)==0):
                     return Response('ok',status=status.HTTP_200_OK)
                 else:
                     return Response("Couldn't complete the request",status=status.HTTP_403_FORBIDDEN)
@@ -231,7 +250,9 @@ class P2PTrx(APIView):
         if(CoinTicker.objects.filter(ticker_symbol=ticker).exists()): #existe el ticker?
             ticker_id = CoinTicker.objects.filter(ticker_symbol=ticker)[0].id
             
-            saveTransaction(5,wallet_origin[0].id,wallet_destination[0].id,ticker_id,amount)
+            if(saveTransaction('p2p',wallet_origin[0].id,wallet_destination[0].id,ticker_id,amount)==1):
+                return Response("Couldn't complete the request",status=status.HTTP_403_FORBIDDEN)
+
         else:
             return Response("Ticker doesn't exists",status=status.HTTP_404_NOT_FOUND)
 

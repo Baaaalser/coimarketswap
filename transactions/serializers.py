@@ -10,8 +10,7 @@ class CoinTickerSerializer(serializers.ModelSerializer):
 		model = CoinTicker
 		fields ='__all__'
 
-txtype = ((1,'AIRDROP-DEPOSIT'),(2,'AIRDROP-SENT'),(3,'BURN-SENT'),
-                (4,'BURN-DEPOSIT'),(5,'P2P-SENT'),(6,'P2P-DEPOSIT'))
+
 
 class TxHistorySerializer(serializers.ModelSerializer):
 	class Meta:

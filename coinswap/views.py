@@ -1,5 +1,5 @@
 from django.contrib.auth import authenticate, login, logout
-#from django.contrib.auth import get_user_model
+
 from rest_framework.permissions import IsAdminUser , AllowAny
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -8,7 +8,7 @@ from .serializers import UserSerializer
 from .models import CustomUser
 
 from django.dispatch import receiver
-#from django_rest_passwordreset.signals import reset_password_token_created
+
 
 
 class LoginView(APIView):
