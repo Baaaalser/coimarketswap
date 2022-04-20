@@ -4,11 +4,9 @@ from .cointicker import CoinTicker
 
 class TxHistory(models.Model):
 
-    txtype = ((1,'AIRDROP-DEPOSIT'),(2,'AIRDROP-SENT'),(3,'BURN-SENT'),
-                (4,'BURN-DEPOSIT'),(5,'P2P-SENT'),(6,'P2P-DEPOSIT'))
-
+    
     tx_hash = models.CharField(max_length=160,unique=True)
-    tx_type = models.CharField(max_length=7,choices=txtype)
+    tx_type = models.CharField(max_length=7)
     wallet_from = models.ForeignKey(CustomUser, related_name='wallet_f', on_delete=models.RESTRICT)
     wallet_to = models.ForeignKey(CustomUser, related_name='wallet_t', on_delete=models.RESTRICT)
     ticker = models.ForeignKey(CoinTicker,related_name='coin_ticker',on_delete=models.CASCADE)
