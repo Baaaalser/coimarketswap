@@ -40,9 +40,6 @@ INSTALLED_APPS = [
     # Django external apps
     'corsheaders',
     'rest_framework',
-    #'django_rest_passwordreset',
-    #'django_filters',
-
     # Django custom apps
     'coinswap',
     'transactions',

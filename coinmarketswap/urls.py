@@ -8,8 +8,7 @@ from rest_framework import routers
 
 # Api router
 router = routers.DefaultRouter()
-#router.register('films', film_views.FilmViewSet, basename='Film')
-#router.register('genres', film_views.GenreViewSet, basename='FilmGenre')
+
 
 urlpatterns = [
     # Admin routes
