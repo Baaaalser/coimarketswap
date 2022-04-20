@@ -126,7 +126,7 @@ class TxHistoryList(APIView):
     def get(self, request):
         if request.user.is_staff:
             txhistory = TxHistory.objects.all()
-            serializer = TxHistoryShowSerializer(txhistory, many=True)
+            serializer = TxHistorySerializer(txhistory, many=True)
             return Response(serializer.data)
 
         elif request.user.is_authenticated:
@@ -142,7 +142,7 @@ class BalancesList(APIView):
         
         if request.user.is_staff:
             balances = Balance.objects.all()
-            serializer = BalanceSerializer(balances, many=True)
+            serializer = userBalanceSerializer(balances, many=True)
             return Response(serializer.data)
 
         elif request.user.is_authenticated:
