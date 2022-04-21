@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware', #habilito el cors para el front
 ]
 
 ROOT_URLCONF = 'coinmarketswap.urls'
@@ -139,3 +140,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ]
 }
+
+# Configuración de CORS
+CORS_ORIGIN_WHITELIST = ['http://localhost:3000','http://192.168.1.115:3000']
+CORS_ALLOW_CREDENTIALS = True
