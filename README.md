@@ -163,7 +163,7 @@ respuesta:
 
 ```json
 {
-	    {
+	{
         "id": 4,
         "wallet": "0xd65339361a81a1fdb406e7999db4d386fe2658de",
         "coin_ticker": "TETHER",
@@ -188,4 +188,12 @@ respuesta:
         "amount": 0.0004
     }
 }
+```
+
+TEST:
+
+para ejecutar los test correr:
+
+```bash
+    python manage.py test
 ```
