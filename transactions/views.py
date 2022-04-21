@@ -166,8 +166,7 @@ class FundAirdropWallet(APIView):
             ticker = request.POST['cointicker']
             amount = float(request.POST['amount'])
         except MultiValueDictKeyError:
-            print('Error')
-            return Response('missing data, use http://url/trx/tx/fundairdrop?&amount=value&cointicker=cointicker',
+            return Response('missing data, use http://url/trx/fundairdrop?&amount=value&cointicker=cointicker',
             status=status.HTTP_400_BAD_REQUEST)
 
         print(userposting.email)
