@@ -1,11 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
-import random
 
-
-def default_wallet():
-    return '0x'+'%040x' % random.getrandbits(160)# genero la wallet de usuario en la creación
 
 class UserSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(
@@ -14,7 +10,7 @@ class UserSerializer(serializers.ModelSerializer):
         required=True)
     password = serializers.CharField(
         min_length=8, write_only=True)
-    wallet_address = serializers.CharField(max_length=42,default = default_wallet)
+    wallet_address = serializers.CharField(read_only=True)
     
 
     class Meta:
